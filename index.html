@@ -1,0 +1,676 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CIFAR-10 Image Classifier</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --primary: #667eea;
+            --secondary: #764ba2;
+            --success: #4CAF50;
+            --error: #f44;
+            --text-dark: #1a1a1a;
+            --text-light: #666;
+            --bg-light: #f8f9ff;
+            --border-color: #e0e7ff;
+            --shadow: 0 10px 40px rgba(0, 0, 0, 0.1);
+            --shadow-lg: 0 20px 60px rgba(0, 0, 0, 0.15);
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 15px;
+        }
+
+        .container {
+            background: white;
+            border-radius: 20px;
+            box-shadow: var(--shadow-lg);
+            max-width: 700px;
+            width: 100%;
+            padding: 40px;
+            animation: slideUp 0.6s ease-out;
+        }
+
+        @keyframes slideUp {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 40px;
+        }
+
+        h1 {
+            color: var(--text-dark);
+            font-size: clamp(24px, 5vw, 32px);
+            margin-bottom: 12px;
+            font-weight: 700;
+            background: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .subtitle {
+            color: var(--text-light);
+            font-size: clamp(13px, 3vw, 16px);
+            margin-bottom: 8px;
+            font-weight: 500;
+        }
+
+        .description {
+            color: #999;
+            font-size: 13px;
+            line-height: 1.6;
+        }
+
+        .upload-section {
+            margin-bottom: 30px;
+        }
+
+        .upload-box {
+            border: 2px dashed var(--primary);
+            border-radius: 16px;
+            padding: clamp(30px, 8vw, 50px);
+            text-align: center;
+            background: linear-gradient(135deg, var(--bg-light) 0%, #ffffff 100%);
+            cursor: pointer;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .upload-box::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent);
+            transition: left 0.5s;
+        }
+
+        .upload-box:hover::before {
+            left: 100%;
+        }
+
+        .upload-box:hover {
+            border-color: var(--secondary);
+            background: linear-gradient(135deg, #e8ecff 0%, #f0f2ff 100%);
+            transform: translateY(-2px);
+            box-shadow: var(--shadow);
+        }
+
+        .upload-box.dragover {
+            border-color: var(--secondary);
+            background: linear-gradient(135deg, #e8ecff 0%, #ede7f6 100%);
+            box-shadow: var(--shadow-lg);
+            transform: scale(1.02);
+        }
+
+        .upload-icon {
+            font-size: 48px;
+            margin-bottom: 16px;
+            animation: bounce 2s infinite;
+        }
+
+        @keyframes bounce {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-8px); }
+        }
+
+        .upload-text {
+            color: var(--text-dark);
+            font-weight: 600;
+            margin-bottom: 8px;
+            font-size: clamp(14px, 3vw, 16px);
+        }
+
+        .upload-hint {
+            color: #999;
+            font-size: 12px;
+            margin-bottom: 16px;
+        }
+
+        #imageInput {
+            display: none;
+        }
+
+        .file-button {
+            background: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%);
+            color: white;
+            border: none;
+            padding: 12px 32px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
+        }
+
+        .file-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 25px rgba(102, 126, 234, 0.4);
+        }
+
+        .file-button:active {
+            transform: translateY(0);
+        }
+
+        .preview-section {
+            display: none;
+            margin-bottom: 30px;
+            animation: slideUp 0.4s ease-out;
+        }
+
+        .preview-section.show {
+            display: block;
+        }
+
+        .preview-container {
+            text-align: center;
+            margin-bottom: 24px;
+        }
+
+        .preview-image {
+            width: 100%;
+            max-width: 280px;
+            height: auto;
+            border-radius: 12px;
+            box-shadow: var(--shadow);
+            border: 1px solid var(--border-color);
+            transition: all 0.3s ease;
+        }
+
+        .preview-image:hover {
+            transform: scale(1.05);
+        }
+
+        .loading {
+            text-align: center;
+            color: var(--primary);
+            font-size: 16px;
+            margin: 24px 0;
+        }
+
+        .spinner {
+            border: 3px solid var(--border-color);
+            border-top: 3px solid var(--primary);
+            border-radius: 50%;
+            width: 48px;
+            height: 48px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 16px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .error {
+            background: linear-gradient(135deg, #ffebee 0%, #fff0f3 100%);
+            border-left: 4px solid var(--error);
+            color: #c33;
+            padding: 16px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            display: none;
+            font-size: 14px;
+            animation: shake 0.3s ease-in-out;
+        }
+
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            25% { transform: translateX(-5px); }
+            75% { transform: translateX(5px); }
+        }
+
+        .error.show {
+            display: block;
+        }
+
+        .prediction-result {
+            background: linear-gradient(135deg, var(--bg-light) 0%, #ffffff 100%);
+            border-left: 4px solid var(--primary);
+            padding: 24px;
+            border-radius: 12px;
+            margin-bottom: 24px;
+            box-shadow: var(--shadow);
+        }
+
+        .prediction-label {
+            color: var(--text-light);
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+            margin-bottom: 12px;
+            font-weight: 700;
+        }
+
+        .prediction-class {
+            font-size: clamp(20px, 4vw, 28px);
+            font-weight: 700;
+            background: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin-bottom: 16px;
+        }
+
+        .confidence-bar {
+            background: var(--border-color);
+            height: 10px;
+            border-radius: 6px;
+            overflow: hidden;
+            margin-bottom: 10px;
+            box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.05);
+        }
+
+        .confidence-fill {
+            background: linear-gradient(90deg, var(--primary) 0%, var(--secondary) 100%);
+            height: 100%;
+            border-radius: 6px;
+            transition: width 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+            box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
+        }
+
+        .confidence-text {
+            font-size: 13px;
+            color: var(--text-light);
+            font-weight: 600;
+        }
+
+        .classes-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+            gap: 12px;
+            margin-top: 20px;
+        }
+
+        .class-item {
+            background: white;
+            border: 1px solid var(--border-color);
+            padding: 14px;
+            border-radius: 10px;
+            font-size: 12px;
+            color: var(--text-light);
+            text-align: center;
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+
+        .class-item:hover {
+            border-color: var(--primary);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.15);
+            transform: translateY(-2px);
+        }
+
+        .class-item strong {
+            color: var(--text-dark);
+            display: block;
+            margin-bottom: 6px;
+            font-weight: 600;
+            font-size: 13px;
+        }
+
+        .class-item .probability {
+            color: var(--primary);
+            font-weight: 700;
+        }
+
+        .reset-button {
+            background: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%);
+            color: white;
+            border: none;
+            padding: 14px 32px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            width: 100%;
+            margin-top: 16px;
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
+        }
+
+        .reset-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 25px rgba(102, 126, 234, 0.4);
+        }
+
+        .reset-button:active {
+            transform: translateY(0);
+        }
+
+        .footer {
+            text-align: center;
+            margin-top: 32px;
+            padding-top: 24px;
+            border-top: 1px solid var(--border-color);
+            color: #999;
+            font-size: 12px;
+        }
+
+        /* Responsive Design */
+        @media (max-width: 768px) {
+            .container {
+                padding: 28px 20px;
+                border-radius: 16px;
+            }
+
+            h1 {
+                font-size: 24px;
+            }
+
+            .classes-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+
+            .upload-box {
+                padding: 30px 20px;
+            }
+        }
+
+        @media (max-width: 480px) {
+            body {
+                padding: 10px;
+            }
+
+            .container {
+                padding: 20px;
+                border-radius: 14px;
+            }
+
+            h1 {
+                font-size: 22px;
+            }
+
+            .subtitle {
+                font-size: 14px;
+            }
+
+            .upload-box {
+                padding: 25px 15px;
+            }
+
+            .upload-icon {
+                font-size: 40px;
+            }
+
+            .prediction-class {
+                font-size: 22px;
+            }
+
+            .classes-grid {
+                grid-template-columns: 1fr;
+                gap: 10px;
+            }
+
+            .file-button,
+            .reset-button {
+                padding: 12px 20px;
+                font-size: 13px;
+            }
+        }
+
+        /* Dark Mode Support */
+        @media (prefers-color-scheme: dark) {
+            :root {
+                --text-dark: #f0f0f0;
+                --text-light: #aaa;
+                --bg-light: #1e1e2e;
+                --border-color: #2a2a3e;
+            }
+
+            .container {
+                background: #16213e;
+                color: var(--text-dark);
+            }
+
+            .upload-box,
+            .prediction-result,
+            .class-item {
+                background: #0f3460;
+                color: var(--text-dark);
+            }
+
+            .upload-box {
+                border-color: var(--primary);
+            }
+
+            .class-item:hover {
+                background: #1a4d7a;
+            }
+        }
+
+        /* Accessibility */
+        .file-button:focus,
+        .reset-button:focus {
+            outline: 2px solid var(--primary);
+            outline-offset: 2px;
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+            * {
+                animation-duration: 0.01ms !important;
+                animation-iteration-count: 1 !important;
+                transition-duration: 0.01ms !important;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🎨 CIFAR-10 Classifier</h1>
+            <p class="subtitle">AI-Powered Image Classification</p>
+            <p class="description">Upload an image to instantly identify objects using deep learning</p>
+        </div>
+
+        <div class="upload-section">
+            <div class="upload-box" id="uploadBox">
+                <div class="upload-icon">📤</div>
+                <div class="upload-text">Click to upload or drag and drop</div>
+                <div class="upload-hint">PNG, JPG, GIF, WEBP • Any size</div>
+                <button class="file-button">Choose File</button>
+                <input type="file" id="imageInput" accept="image/*">
+            </div>
+        </div>
+
+        <div class="error" id="errorMessage"></div>
+
+        <div class="preview-section" id="previewSection">
+            <div class="preview-container">
+                <img id="previewImage" class="preview-image" alt="Preview">
+            </div>
+            
+            <div class="loading" id="loading" style="display: none;">
+                <div class="spinner"></div>
+                <p>Analyzing image...</p>
+            </div>
+
+            <div id="resultSection" style="display: none;">
+                <div class="prediction-result">
+                    <div class="prediction-label">Prediction</div>
+                    <div class="prediction-class" id="predictionClass">-</div>
+                    
+                    <div class="confidence-bar">
+                        <div class="confidence-fill" id="confidenceFill" style="width: 0%"></div>
+                    </div>
+                    <div class="confidence-text">
+                        Confidence: <span id="confidenceText">0%</span>
+                    </div>
+                </div>
+
+                <div>
+                    <div class="prediction-label">All Predictions</div>
+                    <div class="classes-grid" id="classesGrid">
+                        <!-- Populated by JavaScript -->
+                    </div>
+                </div>
+
+                <button class="reset-button" onclick="resetForm()">📷 Upload Another Image</button>
+            </div>
+        </div>
+
+        <div class="footer">
+            <p>Trained on CIFAR-10 Dataset • 10 Classes • Real-time Processing</p>
+        </div>
+    </div>
+
+    <script>
+        const uploadBox = document.getElementById('uploadBox');
+        const imageInput = document.getElementById('imageInput');
+        const previewImage = document.getElementById('previewImage');
+        const previewSection = document.getElementById('previewSection');
+        const loading = document.getElementById('loading');
+        const resultSection = document.getElementById('resultSection');
+        const errorMessage = document.getElementById('errorMessage');
+
+        const classNames = [
+            'Airplane', 'Automobile', 'Bird', 'Cat', 'Deer',
+            'Dog', 'Frog', 'Horse', 'Ship', 'Truck'
+        ];
+
+        // Click to upload
+        uploadBox.addEventListener('click', () => imageInput.click());
+        document.querySelector('.file-button').addEventListener('click', (e) => {
+            e.stopPropagation();
+            imageInput.click();
+        });
+
+        // Drag and drop
+        uploadBox.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadBox.classList.add('dragover');
+        });
+
+        uploadBox.addEventListener('dragleave', () => {
+            uploadBox.classList.remove('dragover');
+        });
+
+        uploadBox.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadBox.classList.remove('dragover');
+            const files = e.dataTransfer.files;
+            if (files.length > 0) {
+                imageInput.files = files;
+                handleImageSelect();
+            }
+        });
+
+        // File input change
+        imageInput.addEventListener('change', handleImageSelect);
+
+        function handleImageSelect() {
+            const file = imageInput.files[0];
+            if (!file) return;
+
+            if (!file.type.startsWith('image/')) {
+                showError('❌ Please select a valid image file');
+                return;
+            }
+
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                previewImage.src = e.target.result;
+                previewSection.classList.add('show');
+                loading.style.display = 'block';
+                resultSection.style.display = 'none';
+                errorMessage.classList.remove('show');
+
+                sendImageForPrediction(file);
+            };
+            reader.readAsDataURL(file);
+        }
+
+        function sendImageForPrediction(file) {
+            const formData = new FormData();
+            formData.append('image', file);
+
+            fetch('/predict', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                return response.json();
+            })
+            .then(data => {
+                loading.style.display = 'none';
+                displayPrediction(data);
+            })
+            .catch(error => {
+                loading.style.display = 'none';
+                console.error('Error:', error);
+                showError('⚠️ Error processing image. Ensure the backend server is running.');
+            });
+        }
+
+        function displayPrediction(data) {
+            const predictions = data.predictions;
+            const predictedClass = data.predicted_class;
+            const confidence = data.confidence;
+
+            document.getElementById('predictionClass').textContent = classNames[predictedClass];
+            document.getElementById('confidenceFill').style.width = (confidence * 100) + '%';
+            document.getElementById('confidenceText').textContent = (confidence * 100).toFixed(1) + '%';
+
+            // Display all classes with sorting
+            const classesGrid = document.getElementById('classesGrid');
+            classesGrid.innerHTML = '';
+            
+            const sorted = predictions.map((prob, idx) => ({ idx, prob }))
+                .sort((a, b) => b.prob - a.prob);
+
+            sorted.forEach(({ idx, prob }) => {
+                const classItem = document.createElement('div');
+                classItem.className = 'class-item';
+                const isHighest = idx === predictedClass ? ' (Best)' : '';
+                classItem.innerHTML = `<strong>${classNames[idx]}</strong><span class="probability">${(prob * 100).toFixed(0)}%</span>`;
+                classesGrid.appendChild(classItem);
+            });
+
+            resultSection.style.display = 'block';
+        }
+
+        function showError(message) {
+            errorMessage.textContent = message;
+            errorMessage.classList.add('show');
+        }
+
+        function resetForm() {
+            imageInput.value = '';
+            previewSection.classList.remove('show');
+            resultSection.style.display = 'none';
+            loading.style.display = 'none';
+            errorMessage.classList.remove('show');
+        }
+    </script>
+</body>
+</html>
